@@ -1,0 +1,6 @@
+target/
+datos/*.txt
+datos/*.tmp
+*.class
+.idea/
+*.iml
