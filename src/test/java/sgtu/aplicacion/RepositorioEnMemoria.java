@@ -29,7 +29,7 @@ class RepositorioEnMemoria implements IRepositorioTurnos {
     }
 
     void precargar(List<Turno> turnos) {
-        this.guardados = clonarTurnos(turnos);
+        this.guardados = new ArrayList<>(turnos);
     }
 
     int getVecesGuardado() {
@@ -37,7 +37,7 @@ class RepositorioEnMemoria implements IRepositorioTurnos {
     }
 
     List<Turno> getGuardados() {
-        return clonarTurnos(guardados);
+        return guardados;
     }
 
     @Override
@@ -45,7 +45,7 @@ class RepositorioEnMemoria implements IRepositorioTurnos {
         if (fallarAlCargar) {
             throw new PersistenciaException("Lectura imposible (simulada).");
         }
-        return clonarTurnos(guardados);
+        return new ArrayList<>(guardados);
     }
 
     @Override
@@ -53,18 +53,9 @@ class RepositorioEnMemoria implements IRepositorioTurnos {
         if (fallarAlGuardar) {
             throw new PersistenciaException("Escritura imposible (simulada).");
         }
-        guardados = clonarTurnos(turnos);
+        guardados = new ArrayList<>(turnos);
         //vecesGuardado ahora ya se incrementa luego de la verificacion
         vecesGuardado++;
     }
-    //metodo auxiliar para resolver el problema de las copias superficiales
-    private List<Turno> clonarTurnos(List<Turno> origen) {
-        if (origen == null) {
-            return new ArrayList<>();
-        }
-        return origen.stream()
-                //usando la sugerencia de la revision
-                .map(Turno::copiar)
-                .collect(Collectors.toCollection(ArrayList::new));
-    }
+
 }
