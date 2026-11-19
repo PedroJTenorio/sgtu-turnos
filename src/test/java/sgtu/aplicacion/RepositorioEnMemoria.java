@@ -2,6 +2,8 @@ package sgtu.aplicacion;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
+
 import sgtu.dominio.Turno;
 import sgtu.persistencia.PersistenciaException;
 import sgtu.persistencia.IRepositorioTurnos;
@@ -27,7 +29,7 @@ class RepositorioEnMemoria implements IRepositorioTurnos {
     }
 
     void precargar(List<Turno> turnos) {
-        this.guardados = new ArrayList<>(turnos);
+        this.guardados = clonarTurnos(turnos);
     }
 
     int getVecesGuardado() {
@@ -35,7 +37,7 @@ class RepositorioEnMemoria implements IRepositorioTurnos {
     }
 
     List<Turno> getGuardados() {
-        return guardados;
+        return clonarTurnos(guardados);
     }
 
     @Override
@@ -43,15 +45,26 @@ class RepositorioEnMemoria implements IRepositorioTurnos {
         if (fallarAlCargar) {
             throw new PersistenciaException("Lectura imposible (simulada).");
         }
-        return new ArrayList<>(guardados);
+        return clonarTurnos(guardados);
     }
 
     @Override
     public void guardar(List<Turno> turnos) throws PersistenciaException {
-        vecesGuardado++;
         if (fallarAlGuardar) {
             throw new PersistenciaException("Escritura imposible (simulada).");
         }
-        guardados = new ArrayList<>(turnos);
+        guardados = clonarTurnos(turnos);
+        //vecesGuardado ahora ya se incrementa luego de la verificacion
+        vecesGuardado++;
+    }
+    //metodo auxiliar para resolver el problema de las copias superficiales
+    private List<Turno> clonarTurnos(List<Turno> origen) {
+        if (origen == null) {
+            return new ArrayList<>();
+        }
+        return origen.stream()
+                //usando la sugerencia de la revision
+                .map(Turno::copiar)
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 }
