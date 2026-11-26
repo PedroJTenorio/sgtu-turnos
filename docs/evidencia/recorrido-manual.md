@@ -16,11 +16,13 @@ Fecha: 2026-11-24 • Ejecutado por: Francois • Versión: commit <hash de desa
 | 10 | RF-09, RNF-S04, RNF-U02 | Cancelar `T099` y luego `abc`                                                            | «El turno T099 no existe.» y «El identificador 'abc' no es válido. Use el formato T001.»                                      | Pasó         | ![CV-10](docs/capturas/interfaz-10-entradas-01.png) ![CV-10](docs/capturas/interfaz-10-entradas-02.png)                    |
 | 11 | RF-10, CV-10, RNF-U03   | Revisar el historial completo                                                            | Aparecen Atendidos (T001, T002, T003), Cancelados (T005, T007), En atención (T004 en V02, T006 en V01). Cada estado con texto | Pasó         | ![CV-11](docs/capturas/interfaz-11-historial.png)                     |
 | 12 | RF-11, RNF-R01, CV-07   | Cerrar la ventana y abrirla de nuevo con el mismo archivo                                | Mismos turnos, estados y ventanillas ocupadas (T004 en V02, T006 en V01)                                                      | Pasó         | ![CV-12](docs/capturas/interfaz-12-reinicio.png)                      |
-| 13 | RD-03                   | Cerrar. Escribir `basura` dentro de `~/recorrido.txt` y abrir con ese archivo            | Ventana de error «No se pudo iniciar…»; el archivo sigue con `basura`                                                         | Pasó         | ![CV-13](docs/capturas/interfaz-14-danado-01.png) ![CV-13](docs/capturas/interfaz-14-danado-02.png)                    |
+| 13 | CV-08                   | Registrar un turno            | Recibe T008: no se reutiliza ningún ID                                                         | Pasó         | ![CV-13](docs/capturas/interfaz-13-cv-08.png)             |
+| 14 | RD-03                   | Cerrar. Escribir `basura` dentro de `~/recorrido.txt` y abrir con ese archivo            | Ventana de error «No se pudo iniciar…»; el archivo sigue con `basura`                                                         | Pasó         | ![CV-14](docs/capturas/interfaz-14-danado-01.png) ![CV-14](docs/capturas/interfaz-14-danado-02.png)                    |
+| 15 | RI-01, RI-02, RI-03, RNF-U01 | Inspección de pantalla | Se ven controles para registrar, consultar fila, consultar ventanillas, asignar, finalizar, cancelar por ID y consultar historial; etiquetas en español: «Asignar siguiente», «Finalizar», «Cancelar turno»; tras cada operación se actualizan fila, ventanillas e historial sin contradicciones | Pasó | ![CV-15](docs/capturas/interfaz-15-controles.png) |
 
 ## Sin defectos funcionales encontrados.
 
-## Observaciones de usabilidad
+## Observaciones de Usabilidad
 
 - Pide confirmación de cancelación aún con el campo de ID vacío.
 - Pide confirmación de registro aún con el camp de ID erróneo.
