@@ -25,7 +25,7 @@ import sgtu.persistencia.RepositorioArchivo;
     Nuevamente, la funcionalidad de cada test se encuentra descrita en las anotaciones DisplayName
  */
 @DisplayName("ServicioTurnos: guardado, reinicio, fallos y mensajes")
-class ServicioTurnoTest {
+class ServicioTurnosTest {
 
     private RelojManual reloj;
     private RepositorioEnMemoria repositorio;
