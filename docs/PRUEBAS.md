@@ -1,6 +1,12 @@
 Resultado esperado de `mvn test`: **110 pruebas, 0 fallos, 0 omitidas**. El resultado de cada integración está en `docs/evidencia/registro-integracion.md`.
 Entorno: Java 17, Maven 3.9.9, JUnit Jupiter 5.10.2.
 
+Reporte Surefire HTML (no se guarda en el repositorio porque `target/` está en `.gitignore`; se genera con):
+```
+mvn -B clean test org.apache.maven.plugins:maven-surefire-report-plugin:3.2.5:report
+```
+Queda en `target/site/surefire-report.html`.
+
 ## Qué prueba cada clase
 | Clase | Pruebas | Qué comprueba | Tipos de caso |
 |---|---|---|---|
