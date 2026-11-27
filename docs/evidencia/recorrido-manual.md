@@ -1,6 +1,6 @@
 # Recorrido manual de la interfaz
 
-Fecha: 2026-11-24 • Ejecutado por: Francois • Versión: commit <hash de desarrollo> • Equipo/SO/Java: ASUS TUF Gaming A15 / Windows 11 / Java JDK 17
+Fecha: 2026-11-24 • Ejecutado por: Francois • Versión: rama `desarrollo` con T-1 a T-11 integradas • Equipo/SO/Java: ASUS TUF Gaming A15 / Windows 11 / Java JDK 17
 
 | #  | Requisito               | Acción                                                                                   | Resultado esperado                                                                                                            | Pasó / Falló | Captura              |
 |----|-------------------------|------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------|--------------|----------------------|
@@ -24,5 +24,4 @@ Fecha: 2026-11-24 • Ejecutado por: Francois • Versión: commit <hash de desa
 
 ## Observaciones de Usabilidad
 
-- Pide confirmación de cancelación aún con el campo de ID vacío.
-- Pide confirmación de registro aún con el camp de ID erróneo.
+- Pide confirmación de cancelación aún con el campo de ID vacío. Corregido después de este recorrido: con el campo vacío ya no se abre la confirmación y se muestra el rechazo «Debe indicar el identificador del turno» (ver `docs/REVISION_CALIDAD.md`, hallazgo 6).

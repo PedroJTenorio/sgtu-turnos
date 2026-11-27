@@ -1,4 +1,5 @@
-Reporte Surefire HTML: ver `docs/evidencia/` (T-12). Entorno: Java 17, Maven <versión>, JUnit Jupiter 5.10.2.
+Resultado esperado de `mvn test`: **110 pruebas, 0 fallos, 0 omitidas**. El resultado de cada integración está en `docs/evidencia/registro-integracion.md`.
+Entorno: Java 17, Maven 3.9.9, JUnit Jupiter 5.10.2.
 
 ## Qué prueba cada clase
 | Clase | Pruebas | Qué comprueba | Tipos de caso |
@@ -6,7 +7,7 @@ Reporte Surefire HTML: ver `docs/evidencia/` (T-12). Entorno: Java 17, Maven <ve
 | `TurnoTest` | 11 | Estado inicial, ID derivado de la secuencia, transiciones válidas e ilegales, estados terminales, coherencia al restaurar, copias independientes | normal, inválido |
 | `GestorTurnosTest` | 63 | FIFO (reloj detenido, que retrocede, IDs no alfabéticos), asignación a V01–V03, finalización, cancelación, consultas, CV-01 a CV-06 y CV-10, entradas nulas/vacías/malformadas | normal, inválido, límite |
 | `ServicioTurnosTest` | 13 | Guardar y confirmar; fallo de guardado deshace y no anuncia éxito (CV-09); rechazos no guardan; reinicio (CV-07, CV-08); datos inválidos no se sobrescriben; archivo real | normal, inválido |
-| `RepositorioArchivoTest` | 19 | Ida y vuelta con los cuatro estados, sin archivo, archivo dañado o vacío, escritura atómica sin temporales, fallo que no daña el archivo anterior | normal, inválido, límite |
+| `RepositorioArchivoTest` | 22 | Ida y vuelta con los cuatro estados, sin archivo, archivo dañado o vacío, escritura atómica sin temporales, fallo que no daña el archivo anterior | normal, inválido, límite |
 | `RendimientoTest` | 1 | Registrar, consultar fila, asignar y finalizar con 200 turnos en menos de 2 s (RNF-P01) | límite |
 
 ## Casos de verificación de la ERS
