@@ -6,29 +6,32 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
-/*
- Núcleo del dominio: cola FIFO única, tres ventanillas y transiciones de estado.
- No conoce la interfaz ni el almacenamiento (RNF-M01), y valida todas las reglas
- aunque se invoque sin pasar por la interfaz (RNF-S01).
- El orden FIFO depende solo de la secuencia, nunca del reloj ni del texto del ID (RN-02).
- Todas las consultas devuelven copias, así que quien consulta no puede alterar el estado.
+/**
+ * Núcleo del dominio: cola FIFO única, tres ventanillas y transiciones de estado.
+ * No conoce la interfaz ni el almacenamiento (RNF-M01), y valida todas las reglas
+ * aunque se invoque sin pasar por la interfaz (RNF-S01).
+ * El orden FIFO depende solo de la secuencia, nunca del reloj ni del texto del ID (RN-02).
+ * Todas las consultas devuelven copias, así que quien consulta no puede alterar el estado.
  */
-public class GestorTurnos {
+public final class GestorTurnos {
 
     private static final Pattern FORMATO_ID_TURNO = Pattern.compile("T\\d{3,}");
 
     private final Clock reloj;
+    // Siempre ordenada por secuencia ascendente (registrarTurno agrega al final y reemplazarTurnos ordena).
     private final List<Turno> turnos = new ArrayList<>();
 
     public GestorTurnos(Clock reloj) {
         this.reloj = Objects.requireNonNull(reloj, "El reloj es obligatorio.");
     }
 
-    // Crea el gestor a partir de turnos ya existentes (por ejemplo, los recuperados al reiniciar).
+    /** Crea el gestor a partir de turnos ya existentes (por ejemplo, los recuperados al reiniciar). */
     public GestorTurnos(Clock reloj, List<Turno> turnosExistentes) {
         this(reloj);
         reemplazarTurnos(turnosExistentes);
@@ -36,7 +39,7 @@ public class GestorTurnos {
 
     // Operaciones que cambian el estado
 
-    // RF-02: crea un turno En espera al final de la cola.
+    /** RF-02: crea un turno En espera al final de la cola. */
     public Turno registrarTurno() {
         long secuencia = calcularSiguienteSecuencia();
         Turno nuevo = new Turno(secuencia, LocalDateTime.now(reloj));
@@ -44,33 +47,36 @@ public class GestorTurnos {
         return nuevo.copiar();
     }
 
-    // RF-04, RF-05, RN-06, RN-10: asigna el turno más antiguo a una ventanilla libre.
+    /** RF-04, RF-05, RN-06, RN-10: asigna el turno más antiguo a una ventanilla libre. */
     public Turno asignarSiguiente(String idVentanilla) throws OperacionInvalidaException {
         String ventanilla = validarVentanilla(idVentanilla);
         Turno ocupante = buscarTurnoEnAtencion(ventanilla);
         if (ocupante != null) {
-            throw new OperacionInvalidaException("La ventanilla " + ventanilla + " está ocupada con el turno " + ocupante.getId() + ". Finalice esa atención antes de asignar otro turno.");
+            throw new OperacionInvalidaException("La ventanilla " + ventanilla + " está ocupada con el turno "
+                    + ocupante.getId() + ". Finalice esa atención antes de asignar otro turno.");
         }
         Turno siguiente = buscarPrimeroEnEspera();
         if (siguiente == null) {
-            throw new OperacionInvalidaException("No hay turnos en espera para asignar a la ventanilla " + ventanilla + ".");
+            throw new OperacionInvalidaException(
+                    "No hay turnos en espera para asignar a la ventanilla " + ventanilla + ".");
         }
         siguiente.iniciarAtencion(ventanilla);
         return siguiente.copiar();
     }
 
-    // RF-06, RF-07, RN-08: finaliza el turno en atención de una ventanilla.
+    /** RF-06, RF-07, RN-08: finaliza el turno en atención de una ventanilla. */
     public Turno finalizarAtencion(String idVentanilla) throws OperacionInvalidaException {
         String ventanilla = validarVentanilla(idVentanilla);
         Turno enAtencion = buscarTurnoEnAtencion(ventanilla);
         if (enAtencion == null) {
-            throw new OperacionInvalidaException("La ventanilla " + ventanilla + " está libre: no hay una atención que finalizar.");
+            throw new OperacionInvalidaException(
+                    "La ventanilla " + ventanilla + " está libre: no hay una atención que finalizar.");
         }
         enAtencion.finalizar();
         return enAtencion.copiar();
     }
 
-    // RF-08, RF-09, RN-07: cancela un turno que sigue En espera.
+    /** RF-08, RF-09, RN-07: cancela un turno que sigue En espera. */
     public Turno cancelarTurno(String idTurno) throws OperacionInvalidaException {
         long secuencia = validarIdTurno(idTurno);
         Turno turno = buscarPorSecuencia(secuencia);
@@ -83,7 +89,7 @@ public class GestorTurnos {
 
     // Consultas
 
-    // RF-01: estado de V01, V02 y V03.
+    /** RF-01: estado de V01, V02 y V03. */
     public List<EstadoVentanilla> consultarVentanillas() {
         List<EstadoVentanilla> resultado = new ArrayList<>();
         for (String id : Ventanillas.IDS) {
@@ -96,7 +102,7 @@ public class GestorTurnos {
         return resultado;
     }
 
-    // RF-03: solo turnos En espera, por secuencia ascendente.
+    /** RF-03: solo turnos En espera, por secuencia ascendente. */
     public List<Turno> consultarFila() {
         List<Turno> fila = new ArrayList<>();
         for (Turno turno : turnos) {
@@ -107,7 +113,7 @@ public class GestorTurnos {
         return fila;
     }
 
-    // RF-10: todos los turnos registrados, en cualquier estado.
+    /** RF-10: todos los turnos registrados, en cualquier estado. */
     public List<Turno> consultarHistorial() {
         List<Turno> historial = new ArrayList<>();
         for (Turno turno : turnos) {
@@ -116,12 +122,13 @@ public class GestorTurnos {
         return historial;
     }
 
-    /*
-     Sustituye todos los turnos por los indicados, validando las invariantes de la
-     ERS 3.3. Se usa al recuperar datos y al deshacer una operación cuyo guardado falló.
-
-     @throws IllegalArgumentException si los datos violan alguna invariante
-    */
+    /**
+     * Sustituye todos los turnos por los indicados, validando las invariantes de la
+     * ERS 3.3. Se usa al recuperar datos y al deshacer una operación cuyo guardado falló.
+     *
+     * @param nuevosTurnos turnos que reemplazan a los actuales
+     * @throws IllegalArgumentException si los datos violan alguna invariante
+     */
     public void reemplazarTurnos(List<Turno> nuevosTurnos) {
         List<Turno> copia = new ArrayList<>();
         for (Turno turno : nuevosTurnos) {
@@ -135,15 +142,12 @@ public class GestorTurnos {
 
     // Apoyo interno
 
-    // Los turnos nunca se eliminan, por lo que max + 1 jamás reutiliza una secuencia (ERS 3.3).
+    // Los turnos nunca se eliminan y la lista está ordenada, por lo que último + 1 jamás reutiliza una secuencia.
     private long calcularSiguienteSecuencia() {
-        long maxima = 0;
-        for (Turno turno : turnos) {
-            if (turno.getSecuencia() > maxima) {
-                maxima = turno.getSecuencia();
-            }
+        if (turnos.isEmpty()) {
+            return 1;
         }
-        return maxima + 1;
+        return turnos.get(turnos.size() - 1).getSecuencia() + 1;
     }
 
     private void validarInvariantes(List<Turno> lista) {
@@ -153,20 +157,28 @@ public class GestorTurnos {
             if (!secuencias.add(turno.getSecuencia())) {
                 throw new IllegalArgumentException("La secuencia " + turno.getSecuencia() + " está repetida.");
             }
-            boolean ventanillaRepetida = turno.getEstado() == EstadoTurno.EN_ATENCION && !ventanillasOcupadas.add(turno.getVentanillaAsignada());
+            boolean ventanillaRepetida = turno.getEstado() == EstadoTurno.EN_ATENCION
+                    && !ventanillasOcupadas.add(turno.getVentanillaAsignada());
             if (ventanillaRepetida) {
-                throw new IllegalArgumentException("La ventanilla " + turno.getVentanillaAsignada() + " tiene más de un turno en atención.");
+                throw new IllegalArgumentException("La ventanilla " + turno.getVentanillaAsignada()
+                        + " tiene más de un turno en atención.");
             }
         }
+    }
+
+    // Quita espacios y pasa a mayúsculas sin depender de la configuración regional del equipo.
+    private static String normalizar(String texto) {
+        return texto.trim().toUpperCase(Locale.ROOT);
     }
 
     private String validarVentanilla(String idVentanilla) throws OperacionInvalidaException {
         if (idVentanilla == null || idVentanilla.isBlank()) {
             throw new OperacionInvalidaException("Debe indicar una ventanilla (V01, V02 o V03).");
         }
-        String normalizada = idVentanilla.trim().toUpperCase();
+        String normalizada = normalizar(idVentanilla);
         if (!Ventanillas.existe(normalizada)) {
-            throw new OperacionInvalidaException("La ventanilla '" + idVentanilla.trim() + "' no existe. Las ventanillas disponibles son V01, V02 y V03.");
+            throw new OperacionInvalidaException("La ventanilla '" + idVentanilla.trim()
+                    + "' no existe. Las ventanillas disponibles son V01, V02 y V03.");
         }
         return normalizada;
     }
@@ -176,43 +188,40 @@ public class GestorTurnos {
         if (idTurno == null || idTurno.isBlank()) {
             throw new OperacionInvalidaException("Debe indicar el identificador del turno (por ejemplo, T001).");
         }
-        String normalizado = idTurno.trim().toUpperCase();
+        String normalizado = normalizar(idTurno);
         if (!FORMATO_ID_TURNO.matcher(normalizado).matches()) {
-            throw new OperacionInvalidaException("El identificador '" + idTurno.trim() + "' no es válido. Use el formato T001.");
+            throw new OperacionInvalidaException(
+                    "El identificador '" + idTurno.trim() + "' no es válido. Use el formato T001.");
         }
         try {
             return Long.parseLong(normalizado.substring(1));
         } catch (NumberFormatException e) {
-            throw new OperacionInvalidaException("El identificador '" + idTurno.trim() + "' es demasiado grande para existir.");
+            throw new OperacionInvalidaException(
+                    "El identificador '" + idTurno.trim() + "' es demasiado grande para existir.");
         }
+    }
+
+    // Búsqueda lineal común; devuelve el primer turno que cumple la condición, o null.
+    private Turno buscarPrimero(Predicate<Turno> condicion) {
+        for (Turno turno : turnos) {
+            if (condicion.test(turno)) {
+                return turno;
+            }
+        }
+        return null;
     }
 
     private Turno buscarTurnoEnAtencion(String idVentanilla) {
-        for (Turno turno : turnos) {
-            boolean esDeLaVentanilla = turno.getEstado() == EstadoTurno.EN_ATENCION && idVentanilla.equals(turno.getVentanillaAsignada());
-            if (esDeLaVentanilla) {
-                return turno;
-            }
-        }
-        return null;
+        return buscarPrimero(turno -> turno.getEstado() == EstadoTurno.EN_ATENCION
+                && idVentanilla.equals(turno.getVentanillaAsignada()));
     }
 
-    // La lista siempre está ordenada por secuencia, así que el primero En espera es el más antiguo.
+    // La lista está ordenada por secuencia, así que el primero En espera es el más antiguo.
     private Turno buscarPrimeroEnEspera() {
-        for (Turno turno : turnos) {
-            if (turno.getEstado() == EstadoTurno.EN_ESPERA) {
-                return turno;
-            }
-        }
-        return null;
+        return buscarPrimero(turno -> turno.getEstado() == EstadoTurno.EN_ESPERA);
     }
 
     private Turno buscarPorSecuencia(long secuencia) {
-        for (Turno turno : turnos) {
-            if (turno.getSecuencia() == secuencia) {
-                return turno;
-            }
-        }
-        return null;
+        return buscarPrimero(turno -> turno.getSecuencia() == secuencia);
     }
 }

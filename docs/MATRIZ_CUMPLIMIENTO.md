@@ -2,8 +2,9 @@
 
 Claves de pruebas: **GT** = `GestorTurnosTest`, **TT** = `TurnoTest`, **ST** = `ServicioTurnosTest`,
 **RA** = `RepositorioArchivoTest`, **RT** = `RendimientoTest`.
-**Manual** = `docs/evidencia/recorrido-manual.md` (escenarios 1 a 15, capturas `interfaz-NN-*.png`).
-Última ejecución de `mvn test`: 107 pruebas, 0 fallos (fecha: 25/11/2026; commit: 18a0d41).
+**Manual** = `docs/evidencia/recorrido-manual.md` (escenarios 1 a 15, capturas en `docs/capturas/interfaz-NN-*.png`).
+Última ejecución registrada de `mvn test` antes de las correcciones de calidad: 107 pruebas, 0 fallos (25/11/2026, commit 18a0d41).
+Tras las correcciones de calidad (`docs/REVISION_CALIDAD.md`) el total es de **110 pruebas** (3 nuevas en `RepositorioArchivoTest`); el resultado de cada integración queda en `docs/evidencia/registro-integracion.md`.
 
 | ID | Componente | Evidencia |
 |---|---|---|
@@ -17,7 +18,7 @@ Claves de pruebas: **GT** = `GestorTurnosTest`, **TT** = `TurnoTest`, **ST** = `
 | RF-10, RN-09 | `GestorTurnos.consultarHistorial` | GT `historialConLosCuatroEstados`, `terminalesNoVuelvenALaFila` (CV-10); Manual 11 |
 | RF-11, RNF-R01, RD-01 | `RepositorioArchivo`, `IRepositorioTurnos`, `ServicioTurnos` | RA `guardarYCargarConservaTodo`; ST CV-07, CV-08, `reinicioConArchivoReal`; Manual 12 |
 | RF-12, RD-02 | `ServicioTurnos` (aplicar, guardar, confirmar o deshacer) | ST `falloAl…RestauraEstado` (CV-09), `rechazoNoGuarda`; RA `fallaDeGuardadoNoDanaElArchivoAnterior`, `noQuedaArchivoTemporal` |
-| RD-03 | `RepositorioArchivo.cargar`, `Main` | RA `archivoDanadoSeInformaYNoSeModifica`, `archivoVacioEsDanado`, `mensajeIndicaLinea`; ST `lecturaFallidaNoEscribe`, `datosInvalidosNoSeSobrescriben`; Manual 14 |
+| RD-03 | `RepositorioArchivo.cargar`, `Main` | RA `archivoDanadoSeInformaYNoSeModifica`, `archivoVacioEsDanado`, `mensajeIndicaLinea`, `estadoDesconocidoSeInforma`, `secuenciaInvalidaIndicaSuCausa`, `estadoIncoherenteIndicaSuCausa`; ST `lecturaFallidaNoEscribe`, `datosInvalidosNoSeSobrescriben`; Manual 14 |
 | RN-03, RC-03 | `Ventanillas`, `GestorTurnos` | GT `ventanillaInvalidaSeRechaza` (asignar y finalizar), `ventanillaSeNormaliza` |
 | RI-01, RI-02, RI-03 | `VentanaPrincipal` | Manual 1 a 15; Manual 15 (controles y etiquetas) |
 | RNF-U01 | `VentanaPrincipal` | Manual 15 |
@@ -30,7 +31,7 @@ Claves de pruebas: **GT** = `GestorTurnosTest`, **TT** = `TurnoTest`, **ST** = `
 | RNF-S04 | `GestorTurnos.validarIdTurno`, `validarVentanilla` | GT `idMalformadoSeRechaza`, `ventanillaInvalidaSeRechaza`; Manual 10 |
 | RNF-M01 | Paquetes `dominio`, `persistencia`, `aplicacion`, `ui` | Las pruebas de `dominio` corren sin interfaz ni archivos; ST usa `RepositorioEnMemoria` |
 | RNF-M02 | Todo | Estándar en `README.md`; `docs/REVISION_CALIDAD.md` (T-16) |
-| RNF-M03 | `src/test` | 107 pruebas; `docs/PRUEBAS.md`; reporte Surefire de T-12 |
+| RNF-M03 | `src/test` | 110 pruebas; `docs/PRUEBAS.md`; resultados de cada integración en `docs/evidencia/registro-integracion.md` |
 | RNF-M04 | `README.md`, `pom.xml` | Instrucciones de preparar, ejecutar y probar (README final, T-18) |
 | RNF-M05 | `docs/REVISION_CALIDAD.md` | Hallazgos con prioridad (T-16) |
 | RNF-R02 | Dominio + servicio | GT y ST comparan el estado antes y después de un rechazo (`rechazoNoGuarda`, `cv02…`) |

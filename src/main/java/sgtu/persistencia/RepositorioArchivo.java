@@ -13,17 +13,16 @@ import java.util.List;
 import sgtu.dominio.EstadoTurno;
 import sgtu.dominio.Turno;
 
-/*
- * Clase que guarda los turnos en un archivo de texto local (RD-01, RC-04), una línea por turno:
- *
+/**
+ * Guarda los turnos en un archivo de texto local (RD-01, RC-04), una línea por turno:
+ * <pre>
  *   (Encabezado) SGTU;1
- *   (Campos) secuencia;fechaHoraISO;ESTADO;ventanilla
- *
+ *   (Campos)     secuencia;fechaHoraISO;ESTADO;ventanilla
+ * </pre>
  * El guardado escribe primero un archivo temporal y luego lo mueve sobre el definitivo,
  * así un fallo a medias nunca deja el archivo real con datos parciales (RD-02).
  * La lectura nunca modifica el archivo: si está dañado solo informa (RD-03).
  */
-
 public class RepositorioArchivo implements IRepositorioTurnos {
 
     private static final String ENCABEZADO = "SGTU;1";
@@ -57,8 +56,8 @@ public class RepositorioArchivo implements IRepositorioTurnos {
         for (Turno turno : turnos) {
             lineas.add(convertirALinea(turno));
         }
-        //El archivo tempoeral se guarda en la misma carpeta que el archivo.
-        //Se almacena el archivo temporal con la terminacion ".tmp" para distinguir
+        // El archivo temporal se guarda en la misma carpeta que el definitivo y con la terminación ".tmp"
+        // para distinguirlo.
         Path temporal = ruta.resolveSibling(ruta.getFileName() + ".tmp");
         try {
             Path carpeta = ruta.toAbsolutePath().getParent();
@@ -88,35 +87,58 @@ public class RepositorioArchivo implements IRepositorioTurnos {
     }
 
     private Turno interpretarLinea(String linea, int numeroLinea) throws PersistenciaException {
-        //El -1 puesto como segundo argumento permite que se agreguen campos vacios al final
-        //un ejemplo de uso de esto es si un turno no posee una ventanilla asociado y tendría un campo
-        // "" indicando vacio
+        // El -1 como segundo argumento conserva los campos vacíos del final: un turno sin ventanilla
+        // termina con un campo "".
         String[] campos = linea.split(SEPARADOR, -1);
         if (campos.length != CAMPOS_POR_TURNO) {
-            throw lineaInvalida(numeroLinea, "Se esperaban " + CAMPOS_POR_TURNO + " campos.");
+            throw lineaInvalida(numeroLinea, "Se esperaban " + CAMPOS_POR_TURNO + " campos.", null);
+        }
+        long secuencia = leerSecuencia(campos[0], numeroLinea);
+        LocalDateTime fecha = leerFecha(campos[1], numeroLinea);
+        EstadoTurno estado = leerEstado(campos[2], numeroLinea);
+        String ventanilla = null;
+        if (!campos[3].isEmpty()) {
+            ventanilla = campos[3];
         }
         try {
-            long secuencia = Long.parseLong(campos[0]);
-            LocalDateTime fecha = LocalDateTime.parse(campos[1]);
-            EstadoTurno estado = EstadoTurno.valueOf(campos[2]);
-            String ventanilla = null;
-            if (!campos[3].isEmpty()) {
-                ventanilla = campos[3];
-            }
-            //Reconstrucción del turno con los campos rescatados del archivo
+            // Reconstrucción del turno con los campos leídos; valida que estado y ventanilla sean coherentes.
             return Turno.restaurar(secuencia, fecha, estado, ventanilla);
-        } catch (NumberFormatException e) {
-            throw lineaInvalida(numeroLinea, "La secuencia no es un número");
-        } catch (DateTimeParseException e) {
-            throw lineaInvalida(numeroLinea, "La fecha y hora no son válidas");
         } catch (IllegalArgumentException e) {
-            throw lineaInvalida(numeroLinea, "Estado de turno no permitido");
+            throw lineaInvalida(numeroLinea, e.getMessage(), e);
         }
     }
 
-    private PersistenciaException lineaInvalida(int numeroLinea, String motivo) {
-        return new PersistenciaException("El archivo de datos " + ruta + " está dañado (línea "
-                + numeroLinea + ": " + motivo + "). No se modificó.");
+    private long leerSecuencia(String texto, int numeroLinea) throws PersistenciaException {
+        try {
+            return Long.parseLong(texto);
+        } catch (NumberFormatException e) {
+            throw lineaInvalida(numeroLinea, "La secuencia no es un número", e);
+        }
+    }
+
+    private LocalDateTime leerFecha(String texto, int numeroLinea) throws PersistenciaException {
+        try {
+            return LocalDateTime.parse(texto);
+        } catch (DateTimeParseException e) {
+            throw lineaInvalida(numeroLinea, "La fecha y hora no son válidas", e);
+        }
+    }
+
+    private EstadoTurno leerEstado(String texto, int numeroLinea) throws PersistenciaException {
+        try {
+            return EstadoTurno.valueOf(texto);
+        } catch (IllegalArgumentException e) {
+            throw lineaInvalida(numeroLinea, "Estado de turno no permitido", e);
+        }
+    }
+
+    private PersistenciaException lineaInvalida(int numeroLinea, String motivo, Throwable causa) {
+        String mensaje = "El archivo de datos " + ruta + " está dañado (línea "
+                + numeroLinea + ": " + motivo + "). No se modificó.";
+        if (causa == null) {
+            return new PersistenciaException(mensaje);
+        }
+        return new PersistenciaException(mensaje, causa);
     }
 
     private String convertirALinea(Turno turno) {
@@ -136,7 +158,8 @@ public class RepositorioArchivo implements IRepositorioTurnos {
             Files.move(temporal, ruta, StandardCopyOption.REPLACE_EXISTING);
         }
     }
-    //Tras mover el contenido del archivo temporal al definitivo, se elimina el archivo temporal
+
+    // Se usa cuando el guardado falla: elimina el temporal para que no queden restos junto a los datos.
     private void borrarTemporal(Path temporal) {
         try {
             Files.deleteIfExists(temporal);

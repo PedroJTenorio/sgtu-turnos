@@ -2,7 +2,6 @@ package sgtu.ui;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Component;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
 import java.time.format.DateTimeFormatter;
@@ -15,27 +14,34 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
-import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableColumnModel;
 import sgtu.aplicacion.ResultadoOperacion;
 import sgtu.aplicacion.ServicioTurnos;
-import sgtu.dominio.EstadoTurno;
 import sgtu.dominio.EstadoVentanilla;
 import sgtu.dominio.OperacionInvalidaException;
 import sgtu.dominio.Turno;
 import sgtu.dominio.Ventanillas;
 import sgtu.persistencia.PersistenciaException;
 
-// Interfaz de escritorio (Swing). Solo presenta datos y delega toda regla de negocio (RNF-M01). Cubre RI-01, RI-02 y RI-03.
-public class VentanaPrincipal extends JFrame {
+/**
+ * Interfaz de escritorio (Swing). Solo presenta datos y delega toda regla de negocio (RNF-M01).
+ * Cubre RI-01, RI-02 y RI-03.
+ */
+public final class VentanaPrincipal extends JFrame {
 
     private static final long serialVersionUID = 1L;
     private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
     private static final String[] COLUMNAS_FILA = {"ID", "Registro"};
     private static final String[] COLUMNAS_HISTORIAL = {"ID", "Registro", "Estado", "Ventanilla"};
-    private static final int COLUMNA_ESTADO_HISTORIAL = 2;
 
-    // Acción de la interfaz que puede ser rechazada por el dominio o fallar al guardar.
+    // Posición de cada columna del historial; deben coincidir con el orden de COLUMNAS_HISTORIAL.
+    private static final int COLUMNA_ID = 0;
+    private static final int COLUMNA_REGISTRO = 1;
+    private static final int COLUMNA_ESTADO = 2;
+    private static final int COLUMNA_VENTANILLA = 3;
+
+    /** Acción de la interfaz que puede ser rechazada por el dominio o fallar al guardar. */
     @FunctionalInterface
     private interface Accion {
         ResultadoOperacion ejecutar() throws OperacionInvalidaException, PersistenciaException;
@@ -59,14 +65,15 @@ public class VentanaPrincipal extends JFrame {
     }
 
     // Construcción de la interfaz
+
     private void construirInterfaz() {
         setLayout(new BorderLayout(8, 8));
         panelVentanillas.setBorder(BorderFactory.createTitledBorder("Ventanillas"));
         add(panelVentanillas, BorderLayout.NORTH);
 
         JPanel centro = new JPanel(new GridLayout(1, 2, 8, 8));
-        centro.add(crearPanelTabla("Fila de espera (FIFO)", modeloFila, -1));
-        centro.add(crearPanelTabla("Historial", modeloHistorial, COLUMNA_ESTADO_HISTORIAL));
+        centro.add(crearPanelTabla("Fila de espera (FIFO)", crearTabla(modeloFila)));
+        centro.add(crearPanelTabla("Historial", crearTablaHistorial()));
         add(centro, BorderLayout.CENTER);
 
         JPanel sur = new JPanel(new BorderLayout());
@@ -93,22 +100,30 @@ public class VentanaPrincipal extends JFrame {
         return panel;
     }
 
-    private JScrollPane crearPanelTabla(String titulo, DefaultTableModel modelo, int columnaEstado) {
+    private JTable crearTabla(DefaultTableModel modelo) {
         JTable tabla = new JTable(modelo);
         tabla.setEnabled(false);
-        if (columnaEstado >= 0) {
-            tabla.getColumnModel().getColumn(columnaEstado).setCellRenderer(new RenderizadorEstado());
-            tabla.getColumnModel().getColumn(0).setPreferredWidth(50);
-            tabla.getColumnModel().getColumn(1).setPreferredWidth(170);
-            tabla.getColumnModel().getColumn(columnaEstado).setPreferredWidth(95);
-            tabla.getColumnModel().getColumn(3).setPreferredWidth(75);
-        }
+        return tabla;
+    }
+
+    private JTable crearTablaHistorial() {
+        JTable tabla = crearTabla(modeloHistorial);
+        TableColumnModel columnas = tabla.getColumnModel();
+        columnas.getColumn(COLUMNA_ESTADO).setCellRenderer(new RenderizadorEstadoTurno());
+        columnas.getColumn(COLUMNA_ID).setPreferredWidth(50);
+        columnas.getColumn(COLUMNA_REGISTRO).setPreferredWidth(170);
+        columnas.getColumn(COLUMNA_ESTADO).setPreferredWidth(95);
+        columnas.getColumn(COLUMNA_VENTANILLA).setPreferredWidth(75);
+        return tabla;
+    }
+
+    private JScrollPane crearPanelTabla(String titulo, JTable tabla) {
         JScrollPane desplazamiento = new JScrollPane(tabla);
         desplazamiento.setBorder(BorderFactory.createTitledBorder(titulo));
         return desplazamiento;
     }
 
-    private DefaultTableModel crearModelo(String[] columnas) {
+    private static DefaultTableModel crearModelo(String[] columnas) {
         return new DefaultTableModel(columnas, 0);
     }
 
@@ -139,33 +154,50 @@ public class VentanaPrincipal extends JFrame {
 
     // Acciones
 
-    // RNF-U04: pide confirmación explícita y, si se rechaza, no cambia nada.
+    /**
+     * RNF-U04: pide confirmación explícita y, si se rechaza, no cambia nada.
+     * Con el campo vacío no hay nada que confirmar: se deja que el dominio explique qué falta.
+     */
     private void cancelarTurno() {
         String id = campoIdCancelar.getText();
-        int respuesta = JOptionPane.showConfirmDialog(this,
-                "¿Desea cancelar el turno '" + id.trim() + "'? Esta acción no se puede deshacer.",
-                "Confirmar cancelación", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
-        if (respuesta != JOptionPane.YES_OPTION) {
+        if (!id.isBlank() && !confirmarCancelacion(id)) {
             etiquetaMensaje.setText("Cancelación no confirmada: no se hicieron cambios.");
             return;
         }
-        ejecutar(() -> servicio.cancelarTurno(id));
+        if (ejecutar(() -> servicio.cancelarTurno(id))) {
+            campoIdCancelar.setText("");
+        }
     }
 
-    // Ejecuta una acción y muestra su resultado; así el manejo de errores no se repite.
-    private void ejecutar(Accion accion) {
+    private boolean confirmarCancelacion(String id) {
+        int respuesta = JOptionPane.showConfirmDialog(this,
+                "¿Desea cancelar el turno '" + id.trim() + "'? Esta acción no se puede deshacer.",
+                "Confirmar cancelación", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+        return respuesta == JOptionPane.YES_OPTION;
+    }
+
+    /**
+     * Ejecuta una acción y muestra su resultado; así el manejo de errores no se repite.
+     *
+     * @return true si la operación se aplicó y se guardó; false si fue rechazada o falló el guardado
+     */
+    private boolean ejecutar(Accion accion) {
+        boolean correcta = false;
         try {
             ResultadoOperacion resultado = accion.ejecutar();
             etiquetaMensaje.setText("Correcto: " + resultado.mensaje());
-            campoIdCancelar.setText("");
+            correcta = true;
         } catch (OperacionInvalidaException e) {
             etiquetaMensaje.setText("Rechazado: " + e.getMessage());
-            JOptionPane.showMessageDialog(this, e.getMessage(), "Operación rechazada", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(this, e.getMessage(), "Operación rechazada",
+                    JOptionPane.WARNING_MESSAGE);
         } catch (PersistenciaException e) {
             etiquetaMensaje.setText("Error al guardar: " + e.getMessage());
-            JOptionPane.showMessageDialog(this, e.getMessage(), "Error de almacenamiento", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, e.getMessage(), "Error de almacenamiento",
+                    JOptionPane.ERROR_MESSAGE);
         }
         actualizarVistas();
+        return correcta;
     }
 
     // Actualización de la presentación (RI-02)
@@ -196,33 +228,5 @@ public class VentanaPrincipal extends JFrame {
         }
         return new Object[] {turno.getId(), turno.getFechaHoraRegistro().format(FORMATO_FECHA),
                 turno.getEstado().getEtiqueta(), ventanilla};
-    }
-
-    // RNF-U03: el estado se distingue por texto y además por color (el color nunca es lo único).
-    private static class RenderizadorEstado extends DefaultTableCellRenderer {
-
-        private static final long serialVersionUID = 1L;
-
-        @Override
-        public Component getTableCellRendererComponent(JTable tabla, Object valor, boolean seleccionada,
-                                                       boolean enfocada, int fila, int columna) {
-            Component componente = super.getTableCellRendererComponent(tabla, valor, seleccionada,
-                    enfocada, fila, columna);
-            componente.setBackground(colorDe(String.valueOf(valor)));
-            return componente;
-        }
-
-        private Color colorDe(String etiqueta) {
-            if (etiqueta.equals(EstadoTurno.EN_ESPERA.getEtiqueta())) {
-                return new Color(255, 245, 200);
-            }
-            if (etiqueta.equals(EstadoTurno.EN_ATENCION.getEtiqueta())) {
-                return new Color(200, 225, 255);
-            }
-            if (etiqueta.equals(EstadoTurno.ATENDIDO.getEtiqueta())) {
-                return new Color(210, 240, 210);
-            }
-            return new Color(235, 210, 210);
-        }
     }
 }

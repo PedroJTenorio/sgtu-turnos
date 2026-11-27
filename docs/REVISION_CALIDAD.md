@@ -1,15 +1,16 @@
 # Revisión final de calidad (RNF-M05)
 
-Revisó: Pedro Tenorio · Fecha: 2026-11-26 · Tareas Revisadas: T-1 a T-15 integradas
-Alcance: `src/main` (13 archivos, 938 líneas) y `src/test` (7 archivos), más los documentos de `docs/` y `README.md`.
-**No se aplicó ningún cambio de código ni de otros documentos.** Los puntos de abajo son oportunidades; cada una se corregiría en su propia tarea y PR.
+Revisó: Pedro Tenorio · Fecha: 2026-11-26
+Alcance: `src/main` (13 archivos, 938 líneas antes de las correcciones) y `src/test` (7 archivos), más los documentos de `docs/` y `README.md`.
+
+Este documento tiene dos partes: los hallazgos de la revisión (sobre el commit revisado) y su **estado** después de las correcciones. Las correcciones se hicieron en un PR aparte, sin cambiar ninguna regla de negocio, y se comprobaron con las pruebas (110 en total: 107 anteriores y 3 nuevas).
 
 ## Método
-Lectura completa de cada archivo de `src/main`, búsquedas con `grep` y `awk` (comandos en el anexo), y contraste de los documentos con el código real.
+Lectura completa de cada archivo de `src/main`; búsquedas con `grep` y `awk` (anexo); compilación con `javac -Xlint:all`; contraste de los documentos con el código real; y prueba de la interfaz en pantalla virtual para confirmar los hallazgos de usabilidad antes y después de corregirlos.
 
 ## Qué se observó bien
 - El dominio no depende de la interfaz ni de archivos; las reglas se validan dentro de `Turno` y `GestorTurnos`, aunque se invoque sin pasar por la pantalla (RNF-M01, RNF-S01).
-- Las transiciones de estado (`iniciarAtencion`, `finalizar`, `cancelar`) son visibles solo dentro del paquete y las consultas devuelven copias.
+- Las transiciones de estado son visibles solo dentro del paquete y las consultas devuelven copias.
 - El orden FIFO depende de la secuencia y no del reloj ni del texto del ID (RN-02).
 - `ServicioTurnos` guarda antes de confirmar y restaura el estado si el guardado falla (RD-02); una operación rechazada no intenta guardar (RNF-R02).
 - `RepositorioArchivo` escribe en un temporal y lo mueve sobre el definitivo; un archivo dañado se informa y no se modifica (RD-02, RD-03).
@@ -17,59 +18,61 @@ Lectura completa de cada archivo de `src/main`, búsquedas con `grep` y `awk` (c
 - Mensajes de error que nombran la causa y el ID o la ventanilla (RNF-U02).
 - Estado de ventanilla derivado del turno En atención: no hay un segundo dato que pueda contradecirse.
 
-## Oportunidades de mejora en el código
-| # | Hallazgo | Dónde | Mejora posible | Prioridad |
-|---|---|---|---|---|
-| 1 | Todo error al interpretar una línea que no sea número o fecha se informa como «Estado de turno no permitido». El `catch (IllegalArgumentException)` también atrapa la secuencia menor a 1 y la combinación incoherente de estado y ventanilla de `Turno.restaurar`, así que el mensaje al usuario es engañoso (el dañado de RD-03 se informa bien, pero con la causa equivocada). Además `lineaInvalida` no encadena la causa original | `RepositorioArchivo.interpretarLinea`, líneas 112-113; `lineaInvalida`, línea 117 | Separar la conversión del estado de la restauración, o usar el mensaje de la excepción en lugar de un texto fijo | Media |
-| 2 | Ventanillas como `String` («V01»): la validación está repartida en tres lugares | `Ventanillas.existe` (línea 17), `GestorTurnos.validarVentanilla` (línea 163), `Turno.restaurar` (línea 33) | Un `enum` o un tipo propio que valide una sola vez | Media |
-| 3 | `VentanaPrincipal` (227 líneas) mezcla construcción de pantalla, acciones y renderizado; es la clase más grande del proyecto | `ui/VentanaPrincipal.java` | Extraer el panel de ventanillas y el renderizador a clases propias | Media |
-| 4 | `registrarTurno` atrapa `OperacionInvalidaException` y lanza `IllegalStateException` solo porque la interfaz funcional declara esa excepción. Esa `IllegalStateException` no la captura `VentanaPrincipal.ejecutar` | `ServicioTurnos`, líneas 47-54; `VentanaPrincipal.ejecutar`, líneas 156-169 | Parametrizar la excepción de la interfaz funcional o separar la operación que no puede fallar | Media |
-| 5 | Los índices de columna están fijos (0, 1 y 3) junto a la constante `COLUMNA_ESTADO_HISTORIAL`, y dependen del orden de `COLUMNAS_HISTORIAL`. Si cambia el orden de las columnas, los anchos quedan en la columna equivocada | `VentanaPrincipal.crearPanelTabla`, líneas 101-104 | Constantes con nombre para cada columna | Baja |
-| 6 | Se pide confirmación de cancelación aun con el campo de ID vacío (también lo anota el recorrido manual) | `VentanaPrincipal.cancelarTurno`, líneas 143-153 | Validar que haya texto antes de abrir el diálogo | Baja (usabilidad) |
-| 7 | `ejecutar` borra el campo «ID del turno a cancelar» tras **cualquier** operación correcta, no solo tras cancelar: si el operador escribió un ID y pulsa «Asignar siguiente», se pierde lo escrito | `VentanaPrincipal.ejecutar`, línea 160 | Limpiar el campo solo en la cancelación | Baja (usabilidad) |
-| 8 | Un rechazo se muestra dos veces: en la barra de mensajes y en un cuadro modal que obliga a un clic extra | `VentanaPrincipal.ejecutar`, líneas 162-163 y 165-166 | Elegir uno (por ejemplo, solo la barra para rechazos de negocio) | Baja (usabilidad) |
-| 9 | `RenderizadorEstado.colorDe` devuelve el color de «Cancelado» para cualquier etiqueta que no reconozca: un estado nuevo se vería como cancelado sin avisar | `VentanaPrincipal`, líneas 215-226 | Un mapa estado → color o un `switch` exhaustivo sobre `EstadoTurno` | Baja |
-| 10 | La normalización (`trim` + `toUpperCase`) se repite en dos validadores, y `toUpperCase()` usa la configuración regional del equipo | `GestorTurnos.validarVentanilla` y `validarIdTurno`, líneas 167 y 179 | Método auxiliar común con `Locale.ROOT` | Baja |
-| 11 | Tres búsquedas lineales casi iguales | `GestorTurnos`, líneas 190-217 | Una búsqueda genérica con predicado; irrelevante en rendimiento con 200 turnos | Baja |
-| 12 | `calcularSiguienteSecuencia` recorre toda la lista aunque está ordenada por secuencia | `GestorTurnos`, líneas 139-147 | Tomar el último elemento (la lista está ordenada) | Baja |
-| 13 | El respaldo previo a cada operación usa `consultarHistorial()`; el nombre no expresa «instantánea» | `ServicioTurnos.ejecutarYGuardar`, línea 91 | Método con nombre propio | Baja |
-| 14 | Los mensajes de confirmación usan `String.format` con plantillas posicionales (`%1$s`, `%2$s`); en cancelar y registrar el segundo argumento (ventanilla) no se usa | `ServicioTurnos`, líneas 49, 59, 65, 70, 99 | Mensajes construidos en la presentación o en un objeto de mensajes | Baja |
+## Hallazgos y su estado
+Estado: **Corregido** (con el cambio hecho), **Parcial**, **Se mantiene** (decisión justificada) o **Pendiente** (ya planificado en otra tarea).
 
-## Estilo, formato y comentarios
-| # | Hallazgo | Dónde | Mejora posible | Prioridad |
+### Código
+| # | Hallazgo | Dónde (commit revisado) | Prio. | Estado |
 |---|---|---|---|---|
-| 15 | 19 líneas superan 120 caracteres (varias, más de 150: `GestorTurnos` 52, 169; `Turno` 34, 79, 87, 94) | `GestorTurnos` (9), `Turno` (6), `Main` (2), `VentanaPrincipal` (1), `ServicioTurnos` (1) | Partir las líneas; fijar el límite en el estándar de codificación del README | Baja |
-| 16 | No hay ningún comentario Javadoc (`/** … */`); la documentación es de bloque `/* … */` o de línea `//`. El bloque `@param` de `EstadoVentanilla` y `@throws` de `GestorTurnos.reemplazarTurnos` no lo procesa la herramienta `javadoc` | Todos los archivos de `src/main` | Convertir los comentarios de clase y métodos públicos a Javadoc | Baja |
-| 17 | Estilo de comentarios inconsistente: `//Texto` sin espacio, textos con errores de ortografía («tempoeral», «vacios», «asociado»), un comentario incompleto («…para distinguir») y un comentario que no corresponde al método (`borrarTemporal` dice «Tras mover el contenido…» pero se llama cuando el guardado falla) | `Turno` línea 17; `RepositorioArchivo` líneas 60-61, 91-93, 139 | Unificar estilo y corregir textos | Baja |
-| 18 | El comentario de `ResultadoOperacion` la llama «Clase de utilidad» (es un `record` con datos) y enumera «parametro 1/2» fuera de formato | `ResultadoOperacion`, líneas 5-10 | Corregir el comentario | Baja |
-| 19 | Importaciones fuera de orden y bloques en blanco irregulares | `ServicioTurnos` (líneas 9-10), `IRepositorioTurnos` (líneas 3-7: la importación de `sgtu` va antes que la de `java.util`) | Ordenar las importaciones | Baja |
+| 1 | Todo error al interpretar una línea que no fuera número o fecha se informaba como «Estado de turno no permitido» (el `catch (IllegalArgumentException)` también atrapaba la secuencia menor a 1 y la combinación incoherente de estado y ventanilla) y no se encadenaba la causa | `RepositorioArchivo.interpretarLinea`, líneas 112-113 y 117 | Media | **Corregido**: la lectura se separó en `leerSecuencia`, `leerFecha`, `leerEstado` y la restauración informa su propio mensaje, con la causa encadenada. 3 pruebas nuevas; 2 de ellas fallan con el código anterior |
+| 2 | Ventanillas como `String` («V01»): la validación está repartida | `Ventanillas.existe`, `GestorTurnos.validarVentanilla`, `Turno.restaurar` | Media | **Se mantiene**: un `enum` cambia la API pública que usan la interfaz y casi todas las pruebas; el riesgo no compensa a pocos días de la entrega. |
+| 3 | `VentanaPrincipal` mezcla construcción de pantalla, acciones y renderizado | `ui/VentanaPrincipal.java` (227 líneas) | Media | **Parcial**: el renderizador pasó a su propia clase `RenderizadorEstadoTurno` y la tabla del historial se arma en un método aparte; la clase sigue en unas 230 líneas |
+| 4 | `registrarTurno` atrapaba `OperacionInvalidaException` para lanzar `IllegalStateException`, que además no capturaba la interfaz | `ServicioTurnos`, líneas 47-54 | Media | **Corregido**: `registrarTurno` ya no pasa por la operación que declara la excepción; guarda con `guardarYConfirmar` |
+| 5 | Índices de columna fijos (0, 1, 3) junto a una constante | `VentanaPrincipal.crearPanelTabla`, líneas 101-104 | Baja | **Corregido**: constantes `COLUMNA_ID`, `COLUMNA_REGISTRO`, `COLUMNA_ESTADO`, `COLUMNA_VENTANILLA` |
+| 6 | Se pedía confirmación de cancelación aun con el campo de ID vacío | `VentanaPrincipal.cancelarTurno` | Baja | **Corregido**: con el campo vacío no hay confirmación y se muestra el rechazo del dominio. Comprobado en pantalla virtual |
+| 7 | El campo de ID se borraba tras cualquier operación correcta (p. ej. «Asignar siguiente») | `VentanaPrincipal.ejecutar`, línea 160 | Baja | **Corregido**: `ejecutar` devuelve si la operación se aplicó y solo la cancelación limpia el campo. Comprobado en pantalla virtual |
+| 8 | Un rechazo se muestra dos veces: barra de mensajes y cuadro modal | `VentanaPrincipal.ejecutar` | Baja | **Se mantiene**: es una redundancia deliberada (el cuadro asegura que el operador lo vea) y quitarla obligaría a rehacer las capturas del recorrido manual y del manual de usuario |
+| 9 | `colorDe` devolvía el color de «Cancelado» para cualquier etiqueta desconocida | `VentanaPrincipal`, líneas 215-226 | Baja | **Corregido**: tabla de colores por estado; una etiqueta desconocida conserva el color normal |
+| 10 | Normalización repetida y `toUpperCase()` dependiente de la configuración regional | `GestorTurnos.validarVentanilla` / `validarIdTurno` | Baja | **Corregido**: método `normalizar` con `Locale.ROOT` |
+| 11 | Tres búsquedas lineales casi iguales | `GestorTurnos`, líneas 190-217 | Baja | **Corregido**: una búsqueda `buscarPrimero(Predicate)` |
+| 12 | `calcularSiguienteSecuencia` recorría toda la lista aunque está ordenada | `GestorTurnos`, líneas 139-147 | Baja | **Corregido**: último + 1 (la lista siempre está ordenada) |
+| 13 | El respaldo usaba `consultarHistorial()`; el nombre no dice «instantánea» | `ServicioTurnos`, línea 91 | Baja | **Corregido**: método `tomarInstantanea()` |
+| 14 | Mensajes con `String.format` posicional, con argumentos que no se usaban | `ServicioTurnos` | Baja | **Corregido**: cada operación arma su mensaje con una función; los textos son idénticos |
+| 30 | `PersistenciaException` era una excepción no comprobada (`RuntimeException`) mientras `OperacionInvalidaException` es comprobada; las cláusulas `throws` eran decorativas y un fallo de almacenamiento podía pasar sin tratarse | `persistencia/PersistenciaException.java` | Media | **Corregido**: ahora es comprobada |
+| 31 | `javac -Xlint:all` avisaba de `this-escape` en `GestorTurnos` y `VentanaPrincipal` (constructor que llama a métodos sobrescribibles) | `GestorTurnos` línea 34; `VentanaPrincipal` línea 54 | Baja | **Corregido**: ambas clases son `final`; compilación sin avisos |
 
-## Pruebas
-| # | Hallazgo | Dónde | Mejora posible | Prioridad |
+### Estilo, formato y comentarios
+| # | Hallazgo | Dónde | Prio. | Estado |
 |---|---|---|---|---|
-| 20 | El archivo y la clase se llaman `ServicioTurnoTest` (singular); el resto sigue el patrón `<Clase>Test` y la clase probada es `ServicioTurnos` | `src/test/java/sgtu/aplicacion/ServicioTurnoTest.java` | Renombrar a `ServicioTurnosTest` (y confirmar que Surefire lo sigue ejecutando) | Baja |
-| 21 | No hay prueba automática de la interfaz Swing; los requisitos de pantalla (RI-01 a RI-03, RNF-U01 a RNF-U04) dependen del recorrido manual | `src/test` | Aceptado por alcance; se declara en la matriz | Ninguna |
+| 15 | 19 líneas de más de 120 caracteres (varias, más de 150) | `GestorTurnos` (9), `Turno` (6), `Main` (2), `VentanaPrincipal` (1), `ServicioTurnos` (1) | Baja | **Corregido**: ninguna línea supera 120 caracteres |
+| 16 | Ningún comentario Javadoc; los bloques `/* */` y los `@param` no los procesa `javadoc` | `src/main` | Baja | **Corregido**: comentarios de clase y de los métodos principales convertidos a Javadoc |
+| 17 | Comentarios inconsistentes: `//Texto` sin espacio, errores de ortografía, un comentario incompleto y otro que no correspondía al método | `Turno` línea 17; `RepositorioArchivo` líneas 60-61, 91-93, 139 | Baja | **Corregido** |
+| 18 | Comentario de `ResultadoOperacion` la llamaba «Clase de utilidad» y usaba «parametro 1/2» | `ResultadoOperacion`, líneas 5-10 | Baja | **Corregido** |
+| 19 | Importaciones fuera de orden | `ServicioTurnos`, `IRepositorioTurnos` | Baja | **Corregido** |
 
-## Documentación y evidencia
-La corrección corresponde a la tarea de su autor, no a este PR.
-| # | Hallazgo | Dónde | Mejora posible | Prioridad |
+### Pruebas
+| # | Hallazgo | Dónde | Prio. | Estado |
 |---|---|---|---|---|
-| 22 | La matriz y `PRUEBAS.md` citan `ServicioTurnosTest`, pero la clase real es `ServicioTurnoTest` (hallazgo 20); una búsqueda de la clase citada no la encuentra | `docs/MATRIZ_CUMPLIMIENTO.md` (línea 3), `docs/PRUEBAS.md` (tabla) | Corregir el nombre en los documentos o renombrar la clase | Media |
-| 23 | Marcadores sin completar: `PRUEBAS.md` dice «Maven <versión>» y no incluye la línea de «última ejecución» con fecha y commit; `recorrido-manual.md` conserva «commit <hash de desarrollo>» | `docs/PRUEBAS.md` línea 1; `docs/evidencia/recorrido-manual.md` línea 3 | Sustituir por los valores reales | Media |
-| 24 | La matriz y `PRUEBAS.md` remiten a un reporte Surefire HTML en `docs/evidencia/` que no está en esa carpeta (solo hay `registro-integracion.md`, `recorrido-manual.md` y `rendimiento.md`) | `docs/PRUEBAS.md` línea 1; `docs/MATRIZ_CUMPLIMIENTO.md` (RNF-M03) | Adjuntar el reporte o la salida de `mvn test` de T-12, o retirar la referencia | Media |
-| 25 | Las capturas están en `docs/capturas/`, mientras la matriz habla de «capturas `interfaz-NN-*.png`» sin ruta y la planificación indicaba `docs/evidencia/` | `docs/MATRIZ_CUMPLIMIENTO.md` línea 5 | Indicar la ruta real | Baja |
-| 26 | `registro-integracion.md`: las dos últimas filas desplazan «OK» a la columna «Observaciones». | `docs/evidencia/registro-integracion.md` | Alinear columnas, usar la numeración vigente y completar | Baja |
-| 27 | Observación de usabilidad dudosa: «Pide confirmación de registro aún con el campo de ID erróneo»; en el código solo la cancelación pide confirmación | `docs/evidencia/recorrido-manual.md`, sección «Observaciones de Usabilidad» | Verificar y corregir el texto (probablemente se refería a cancelar) | Baja |
-| 28 | `README.md` sigue siendo el texto base: no explica cómo ejecutar ni probar (RNF-M04); se resuelve en T-18 | `README.md` | Completarlo | Alta |
+| 20 | `ServicioTurnoTest` (singular) no seguía el patrón `<Clase>Test` | `src/test/java/sgtu/aplicacion/` | Baja | **Corregido**: renombrada a `ServicioTurnosTest` |
+| 21 | No hay prueba automática de la interfaz Swing | `src/test` | Ninguna | **Se mantiene**: aceptado por alcance; se cubre con el recorrido manual |
+
+### Documentación y evidencia
+| # | Hallazgo | Dónde | Prio. | Estado |
+|---|---|---|---|---|
+| 22 | Matriz y `PRUEBAS.md` citaban `ServicioTurnosTest` y la clase se llamaba `ServicioTurnoTest` | `docs/MATRIZ_CUMPLIMIENTO.md`, `docs/PRUEBAS.md` | Media | **Corregido** al renombrar la clase (hallazgo 20) |
+| 23 | Marcadores sin completar: «Maven <versión>» y «commit <hash de desarrollo>» | `docs/PRUEBAS.md`, `docs/evidencia/recorrido-manual.md` | Media | **Corregido** |
+| 24 | Se remitía a un reporte Surefire HTML que no está en `docs/evidencia/` | `docs/PRUEBAS.md`, matriz (RNF-M03) | Media | **Corregido**: se explica que el reporte no se versiona (`target/` está en `.gitignore`), con el comando para generarlo; la evidencia es `registro-integracion.md` |
+| 25 | Las capturas están en `docs/capturas/` y la matriz no daba la ruta | `docs/MATRIZ_CUMPLIMIENTO.md` | Baja | **Corregido** |
+| 26 | `registro-integracion.md`: las filas de PR5 y PR6 tenían «OK» en la columna equivocada y faltan integraciones posteriores | `docs/evidencia/registro-integracion.md` | Baja | **Corregido**: columnas alineadas y agregadas las filas de las integraciones posteriores (T-13 a T-16 y este PR de correcciones) |
+| 27 | La observación «pide confirmación de registro…» no corresponde al código: solo la cancelación pide confirmación | `docs/evidencia/recorrido-manual.md` | Baja | **Corregido**: se retiró y se dejó la observación real, indicando que ya se corrigió |
+| 28 | El recorrido manual (Windows 11) y la medición de rendimiento (Ubuntu 24.04) se hicieron con distinto sistema operativo en el mismo portátil | `recorrido-manual.md`, `rendimiento.md` | Baja | **Corregido** |
+| 29 | `README.md` sigue siendo el texto base | `README.md` | Alta si no se completa | **Pendiente**: lo resuelve T-18 |
 
 ## Decisiones de diseño que se mantienen (no son defectos)
 - Se reescribe todo el archivo en cada operación: aceptable para el alcance (cientos de turnos).
 - `T0001` se acepta como `T001` (se interpreta como número); no contradice la ERS y evita rechazar una entrada razonable.
-- Un archivo con una línea en blanco de más se considera dañado: estricto, pero sirve para no sobrescribir datos.
-- `RepositorioEnMemoria` hecho a mano en lugar de Mockito, y Swing en lugar de JavaFX.
-
-## Límites de esta revisión
-Revisión manual hecha por una sola persona, sin medición de cobertura y sin ejecución de la interfaz en esta revisión (se apoya en el recorrido de T-14). Las líneas indicadas corresponden al commit revisado.
+- Un archivo con una línea en blanco de más se considera dañado: estricto, pero a favor de no sobrescribir datos.
+- `RepositorioEnMemoria` hecho a mano en lugar de Mockito, y Swing en lugar de JavaFX: cambios justificados respecto al entorno de ADA-08.
 
 ## Anexo: comandos usados
 ```
@@ -77,8 +80,7 @@ wc -l src/main/java/sgtu/*/*.java src/main/java/sgtu/Main.java
 grep -rnE "System\.(out|err)|printStackTrace|TODO|FIXME" src/main        # sin resultados
 grep -rnE " \? .* : " src/main | grep -vE ":[0-9]+:\s*(\*|//|/\*)"        # sin resultados
 grep -rniE "password|passwd|token|apikey|secret|java\.net|http://|https://" src   # sin resultados
-awk 'length>120 {print FILENAME":"FNR" ("length")"}' $(find src/main -name '*.java')   # 19 líneas
-grep -c "/\*\*" $(find src/main -name '*.java')                           # 0 en todos
-grep -rn "RepositorioTurnos" --include=*.md --include=*.java . | grep -v "IRepositorioTurnos"   # sin resultados
-ls src/test/java/sgtu/aplicacion/                                         # ServicioTurnoTest.java
+awk 'length>120 {print FILENAME":"FNR" ("length")"}' $(find src/main -name '*.java')   # antes: 19 líneas; después: ninguna
+grep -c "/\*\*" $(find src/main -name '*.java')                           # antes: 0 en todos
+javac -Xlint:all -d out $(find src/main -name '*.java')                   # antes: 3 avisos; después: ninguno
 ```

@@ -165,4 +165,40 @@ class RepositorioArchivoTest {
 
         assertTrue(error.getMessage().contains("línea 3"));
     }
+
+    @Test
+    @DisplayName("Un estado desconocido se informa como tal, con el número de línea")
+    void estadoDesconocidoSeInforma() throws IOException {
+        PersistenciaException error = cargarContenido("SGTU;1\n1;2026-11-11T10:00:00;INVENTADO;\n");
+
+        assertTrue(error.getMessage().contains("línea 2"));
+        assertTrue(error.getMessage().contains("Estado de turno no permitido"));
+    }
+
+    @Test
+    @DisplayName("Una secuencia menor a 1 se informa con su causa y no como estado inválido")
+    void secuenciaInvalidaIndicaSuCausa() throws IOException {
+        PersistenciaException error = cargarContenido("SGTU;1\n0;2026-11-11T10:00:00;EN_ESPERA;\n");
+
+        assertTrue(error.getMessage().contains("línea 2"));
+        assertTrue(error.getMessage().contains("secuencia"));
+        assertFalse(error.getMessage().contains("Estado de turno no permitido"));
+    }
+
+    @Test
+    @DisplayName("Un turno Atendido sin ventanilla se informa con su causa y no como estado inválido")
+    void estadoIncoherenteIndicaSuCausa() throws IOException {
+        PersistenciaException error = cargarContenido("SGTU;1\n1;2026-11-11T10:00:00;ATENDIDO;\n");
+
+        assertTrue(error.getMessage().contains("línea 2"));
+        assertTrue(error.getMessage().contains("requiere una ventanilla válida"));
+        assertFalse(error.getMessage().contains("Estado de turno no permitido"));
+    }
+
+    // Escribe el contenido tal cual en el archivo de datos y devuelve el error que produce cargarlo.
+    private PersistenciaException cargarContenido(String contenido) throws IOException {
+        Path ruta = carpeta.resolve("turnos.txt");
+        Files.writeString(ruta, contenido, StandardCharsets.UTF_8);
+        return assertThrows(PersistenciaException.class, () -> new RepositorioArchivo(ruta).cargar());
+    }
 }
